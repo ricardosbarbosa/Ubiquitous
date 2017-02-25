@@ -17,8 +17,11 @@ package com.example.android.sunshine;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,12 +30,25 @@ import android.widget.TextView;
 
 import com.example.android.sunshine.utilities.SunshineDateUtils;
 import com.example.android.sunshine.utilities.SunshineWeatherUtils;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
+
+import java.io.ByteArrayOutputStream;
 
 /**
  * {@link ForecastAdapter} exposes a list of weather forecasts
  * from a {@link android.database.Cursor} to a {@link android.support.v7.widget.RecyclerView}.
  */
 class ForecastAdapter extends RecyclerView.Adapter<ForecastAdapter.ForecastAdapterViewHolder> {
+
+
+    private GoogleApiClient mGoogleApiClient;
 
     private static final int VIEW_TYPE_TODAY = 0;
     private static final int VIEW_TYPE_FUTURE_DAY = 1;
@@ -213,9 +229,62 @@ class ForecastAdapter extends RecyclerView.Adapter<ForecastAdapter.ForecastAdapt
          /* Set the text and content description (for accessibility purposes) */
         forecastAdapterViewHolder.lowTempView.setText(lowString);
         forecastAdapterViewHolder.lowTempView.setContentDescription(lowA11y);
+
+        if (position == 0) {
+
+            if (mGoogleApiClient == null) {
+                mGoogleApiClient = new GoogleApiClient.Builder(mContext)
+                        .addApi(Wearable.API)
+                        .build();
+            }
+
+            if (!mGoogleApiClient.isConnected())
+                mGoogleApiClient.connect();
+
+
+            Bitmap bitmap = BitmapFactory.decodeResource(mContext.getResources(),  SunshineWeatherUtils
+                    .getSmallArtResourceIdForWeatherCondition(weatherId) );
+            Asset asset = createAssetFromBitmap(bitmap);
+
+            final String WEATHER_PATH = "/weather";
+            final String WEATHER_TEMP_HIGH_KEY = "weather_temp_high_key";
+            final String WEATHER_TEMP_LOW_KEY = "weather_temp_low_key";
+            final String WEATHER_TEMP_ICON_KEY = "weather_temp_icon_key";
+
+            PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(WEATHER_PATH);
+            putDataMapRequest.getDataMap().putString(WEATHER_TEMP_HIGH_KEY, highString);
+            putDataMapRequest.getDataMap().putString(WEATHER_TEMP_LOW_KEY, lowString);
+            putDataMapRequest.getDataMap().putAsset(WEATHER_TEMP_ICON_KEY, asset);
+
+            PutDataRequest request = putDataMapRequest.asPutDataRequest();
+            Wearable.DataApi.putDataItem(mGoogleApiClient, request).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                @Override
+                public void onResult(DataApi.DataItemResult dataItemResult) {
+                    if (dataItemResult.getStatus().isSuccess()) {
+                        Log.e("Watch Log", "Successfully send weather info");
+                    } else {
+                        Log.e("Watch Log", "Failed to send weather info ");
+                    }
+                    mGoogleApiClient.disconnect();
+                }
+            });
+
+            if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                mGoogleApiClient.disconnect();
+            }
+        }
+
+
+    }
+
+    private static Asset createAssetFromBitmap(Bitmap bitmap) {
+        final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+        return Asset.createFromBytes(byteStream.toByteArray());
     }
 
     /**
+     *
      * This method simply returns the number of items to display. It is used behind the scenes
      * to help layout our Views and for animations.
      *
@@ -299,4 +368,6 @@ class ForecastAdapter extends RecyclerView.Adapter<ForecastAdapter.ForecastAdapt
             mClickHandler.onClick(dateInMillis);
         }
     }
+
+
 }
