@@ -3,7 +3,7 @@
     <string name="hello_world">Hello World!</string>
     <string name="message">Watch face tapped</string>
     <string name="my_analog_name">My Analog</string>
-
+    <string name="preference_file_key">wear_weather_detail</string>
     <string name="opengl_name">Sample OpenGL</string>
     <string name="interactive_name">Sample Interactive</string>
     <string name="analog_name">Sample Analog</string>
